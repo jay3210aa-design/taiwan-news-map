@@ -651,11 +651,11 @@ const GEMINI_API_KEY = "AIzaSyAL9hwbiAhhWYgCTkZGyzwqG1Uo9tRw_TI";
     <div class="divider"></div>
     <div class="panel-title">資料來源</div>
     <div class="source-list" id="source-list">
-      <div class="source-item"><div class="source-dot" id="src-TVBS"></div>TVBS</div>
-      <div class="source-item"><div class="source-dot" id="src-中央社"></div>中央社</div>
-      <div class="source-item"><div class="source-dot" id="src-聯合-社會"></div>聯合-社會</div>
-      <div class="source-item"><div class="source-dot" id="src-聯合-綜合"></div>聯合-綜合</div>
-      <div class="source-item"><div class="source-dot" id="src-三立"></div>三立</div>
+      <div class="source-item"><div class="source-dot" id="src-台灣綜合"></div>Google News 綜合</div>
+      <div class="source-item"><div class="source-dot" id="src-台灣社會"></div>Google News 社會</div>
+      <div class="source-item"><div class="source-dot" id="src-台灣政治"></div>Google News 政治</div>
+      <div class="source-item"><div class="source-dot" id="src-台灣災害"></div>Google News 災害</div>
+      <div class="source-item"><div class="source-dot" id="src-台灣交通"></div>Google News 交通</div>
     </div>
   </aside>
 </div>
@@ -666,11 +666,11 @@ const GEMINI_API_KEY = "AIzaSyAL9hwbiAhhWYgCTkZGyzwqG1Uo9tRw_TI";
 //  CONSTANTS
 // ============================================================
 const RSS_FEEDS = [
-  { name: 'TVBS',      url: 'https://feeds.feedburner.com/rdfit' },
-  { name: '中央社',    url: 'https://www.cna.com.tw/cna2018api/api/Download/RssIndexDown' },
-  { name: '聯合-社會', url: 'https://rss.udn.com/rss/news/1/6638' },
-  { name: '聯合-綜合', url: 'https://rss.udn.com/rss/news/1/6639' },
-  { name: '三立',      url: 'https://www.setn.com/RSS.aspx' },
+  { name: '台灣綜合',  url: 'https://news.google.com/rss/search?q=台灣&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
+  { name: '台灣社會',  url: 'https://news.google.com/rss/search?q=台灣+社會&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
+  { name: '台灣政治',  url: 'https://news.google.com/rss/search?q=台灣+政治&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
+  { name: '台灣災害',  url: 'https://news.google.com/rss/search?q=台灣+災害+意外&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
+  { name: '台灣交通',  url: 'https://news.google.com/rss/search?q=台灣+交通+事故&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
 ];
 const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
 
