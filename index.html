@@ -816,20 +816,14 @@ async function fetchAll() {
 // ============================================================
 //  GEMINI ANALYSIS
 // ============================================================
-const CITY_HINT = Object.entries(TAIWAN_CITIES)
-  .map(([c, [lat, lng]]) => `${c}:(${lat},${lng})`)
-  .join(' ');
-
 const SYS_PROMPT = `你是台灣新聞地理分析專家。分析提供的新聞，回傳 JSON 陣列，每則格式如下：
-{"title":"新聞標題","location":"台灣地名","lat":緯度或null,"lng":經度或null,"category":"災害|政治|社會|經濟|交通|其他","summary":"50字摘要","url":"連結","publishDate":"ISO日期"}
+{"title":"新聞標題","location":"台灣地名","lat":緯度數字或null,"lng":經度數字或null,"category":"災害|政治|社會|經濟|交通|其他","summary":"50字摘要","url":"連結","publishDate":"ISO日期"}
 
 規則：
 1. 地點不在台灣境內(含離島)時 lat/lng 設 null
-2. 盡量精確到鄉鎮；不確定則用縣市
+2. lat/lng 請填入精確的 WGS84 十進位座標，盡量精確到鄉鎮層級
 3. category 只能是：災害、政治、社會、經濟、交通、其他
-4. 只回傳 JSON 陣列，不要其他文字
-
-台灣縣市座標參考：${CITY_HINT}`;
+4. 只回傳 JSON 陣列，不要其他文字`;
 
 async function analyzeBatch(batch) {
   const text = batch.map((n, i) =>
@@ -864,7 +858,7 @@ async function analyzeBatch(batch) {
 }
 
 async function analyzeAll(items) {
-  const BATCH = 10;
+  const BATCH = 15;
   const batches = [];
   for (let i = 0; i < items.length; i += BATCH) batches.push(items.slice(i, i + BATCH));
 
@@ -879,7 +873,7 @@ async function analyzeAll(items) {
       console.error(`批次 ${i + 1} 失敗:`, err);
       showToast(`部分分析失敗 (批次 ${i + 1}): ${err.message}`);
     }
-    if (i < batches.length - 1) await sleep(5000);
+    if (i < batches.length - 1) await sleep(8000);
   }
   setProgress(100);
   return results.filter(n => n && n.title);
