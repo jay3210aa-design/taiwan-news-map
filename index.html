@@ -672,11 +672,7 @@ const RSS_FEEDS = [
   { name: '聯合-綜合', url: 'https://rss.udn.com/rss/news/1/6639' },
   { name: '三立',      url: 'https://www.setn.com/RSS.aspx' },
 ];
-const CORS_PROXIES = [
-  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-];
+const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
 
 const CAT_COLORS = {
   '災害': '#ef4444',
@@ -767,57 +763,33 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 }).addTo(map);
 
 // ============================================================
-//  RSS FETCH
+//  RSS FETCH (via rss2json.com)
 // ============================================================
 const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
 
-function getTextContent(el, selector) {
-  const node = el.querySelector(selector);
-  if (!node) return '';
-  return (node.textContent || '').replace(/<!\[CDATA\[|\]\]>/g, '').trim();
-}
-
 async function fetchFeed(feed) {
   const src = document.getElementById(`src-${feed.name}`);
-  let text = null;
-  let lastErr = '';
-  for (const proxyFn of CORS_PROXIES) {
-    try {
-      const res = await fetch(proxyFn(feed.url), { signal: AbortSignal.timeout(18000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      text = await res.text();
-      break;
-    } catch (e) { lastErr = e.message; }
-  }
   try {
-    if (!text) throw new Error(lastErr);
-
-    const doc  = new DOMParser().parseFromString(text, 'application/xml');
-    const parseErr = doc.querySelector('parsererror');
-    if (parseErr) {
-      // try as text/html
-      const doc2 = new DOMParser().parseFromString(text, 'text/html');
-      var items = doc2.querySelectorAll('item');
-    } else {
-      var items = doc.querySelectorAll('item');
-    }
+    const res = await fetch(RSS2JSON + encodeURIComponent(feed.url), {
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.message || 'rss2json error');
 
     const cutoff = Date.now() - THREE_DAYS;
     const results = [];
 
-    items.forEach(item => {
+    (data.items || []).forEach(item => {
       try {
-        const title       = getTextContent(item, 'title');
-        const link        = getTextContent(item, 'link') || getTextContent(item, 'guid');
-        const pubDateRaw  = getTextContent(item, 'pubDate');
-        const description = (getTextContent(item, 'description') + getTextContent(item, 'content\\:encoded'))
+        const title       = (item.title || '').trim();
+        const link        = item.link || item.guid || '';
+        const description = (item.description || item.content || '')
                               .replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').substring(0, 250);
-
-        let pubDate = pubDateRaw ? new Date(pubDateRaw) : new Date();
+        let pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
         if (isNaN(pubDate.getTime())) pubDate = new Date();
         if (pubDate.getTime() < cutoff) return;
         if (!title) return;
-
         results.push({ title, link, pubDate: pubDate.toISOString(), description, source: feed.name });
       } catch (_) {}
     });
