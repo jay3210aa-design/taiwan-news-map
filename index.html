@@ -879,7 +879,7 @@ async function analyzeAll(items) {
       console.error(`批次 ${i + 1} 失敗:`, err);
       showToast(`部分分析失敗 (批次 ${i + 1}): ${err.message}`);
     }
-    if (i < batches.length - 1) await sleep(400);
+    if (i < batches.length - 1) await sleep(5000);
   }
   setProgress(100);
   return results.filter(n => n && n.title);
