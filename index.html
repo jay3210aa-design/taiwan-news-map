@@ -1,1127 +1,885 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>台灣新聞地圖</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    :root {
-      --bg-primary:   #080d1a;
-      --bg-secondary: #0f1729;
-      --bg-card:      #162033;
-      --bg-hover:     #1e2d47;
-      --border:       #253555;
-      --border-glow:  #2a4a7f;
-      --text-primary: #cdd9f0;
-      --text-secondary:#7a93bb;
-      --accent:       #4a90d9;
-      --accent-glow:  rgba(74,144,217,0.3);
-      --c-disaster:   #ef4444;
-      --c-politics:   #3b82f6;
-      --c-society:    #f97316;
-      --c-economy:    #22c55e;
-      --c-traffic:    #eab308;
-      --c-other:      #a855f7;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>台灣事件地圖 — Ollama 版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg2: #0f1520;
+    --bg3: #151d2e;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #00ff88;
+    --text: #c8d8e8;
+    --text-dim: #5a7a9a;
+    --red: #ff4466;
+    --orange: #ff8844;
+    --yellow: #ffcc00;
+    --green: #00ff88;
+    --blue: #00aaff;
+    --purple: #aa66ff;
+    --cat-disaster: #ff4466;
+    --cat-politics: #aa66ff;
+    --cat-society: #00aaff;
+    --cat-economy: #ffcc00;
+    --cat-traffic: #ff8844;
+    --cat-other: #5a7a9a;
+  }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    body {
-      font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
 
-    /* ── TOOLBAR ────────────────────────────────────────────── */
-    #toolbar {
-      background: var(--bg-secondary);
-      border-bottom: 1px solid var(--border);
-      box-shadow: 0 2px 20px rgba(0,0,0,0.5);
-      padding: 9px 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      flex-shrink: 0;
-      z-index: 1001;
-      position: relative;
-    }
+  /* ── Toolbar ── */
+  #toolbar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    z-index: 1000;
+    flex-shrink: 0;
+  }
 
-    #toolbar::after {
-      content: '';
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
-    }
+  #toolbar .logo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      text-decoration: none;
-    }
+  #toolbar .logo::before {
+    content: '';
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s infinite;
+  }
 
-    .brand-icon {
-      width: 28px; height: 28px;
-      background: linear-gradient(135deg, #1a3a6e, #2a5cb8);
-      border: 1px solid var(--border-glow);
-      border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px;
-      box-shadow: 0 0 8px rgba(74,144,217,0.25);
-    }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
 
-    .brand-text {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: 0.05em;
-      white-space: nowrap;
-    }
+  .toolbar-divider {
+    width: 1px; height: 24px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
 
-    .sep {
-      width: 1px;
-      height: 22px;
-      background: var(--border);
-      flex-shrink: 0;
-    }
+  select, #county-filter {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+  }
 
-    select {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      color: var(--text-primary);
-      padding: 5px 10px;
-      border-radius: 6px;
-      font-family: inherit;
-      font-size: 0.82rem;
-      cursor: pointer;
-      transition: border-color 0.2s;
-    }
-    select:focus { outline: none; border-color: var(--accent); }
-    select:hover  { border-color: var(--border-glow); }
+  select:focus { outline: none; border-color: var(--accent); }
 
-    .cat-tags {
-      display: flex;
-      gap: 5px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
+  .cat-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
 
-    .cat-label {
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-      white-space: nowrap;
-    }
+  .cat-tag {
+    padding: 4px 10px;
+    border-radius: 12px;
+    border: 1px solid;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
 
-    .cat-tag {
-      padding: 3px 9px;
-      border-radius: 20px;
-      font-size: 0.76rem;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: opacity 0.2s, transform 0.1s;
-      user-select: none;
-      font-weight: 500;
-    }
-    .cat-tag:hover { transform: scale(1.05); }
-    .cat-tag.active { opacity: 1; }
-    .cat-tag:not(.active) { opacity: 0.28; filter: grayscale(70%); }
+  .cat-tag.active { color: #000; }
+  .cat-tag[data-cat="災害"] { border-color: var(--cat-disaster); color: var(--cat-disaster); }
+  .cat-tag[data-cat="災害"].active { background: var(--cat-disaster); }
+  .cat-tag[data-cat="政治"] { border-color: var(--cat-politics); color: var(--cat-politics); }
+  .cat-tag[data-cat="政治"].active { background: var(--cat-politics); }
+  .cat-tag[data-cat="社會"] { border-color: var(--cat-society); color: var(--cat-society); }
+  .cat-tag[data-cat="社會"].active { background: var(--cat-society); }
+  .cat-tag[data-cat="經濟"] { border-color: var(--cat-economy); color: var(--cat-economy); }
+  .cat-tag[data-cat="經濟"].active { background: var(--cat-economy); color: #000; }
+  .cat-tag[data-cat="交通"] { border-color: var(--cat-traffic); color: var(--cat-traffic); }
+  .cat-tag[data-cat="交通"].active { background: var(--cat-traffic); color: #000; }
+  .cat-tag[data-cat="其他"] { border-color: var(--cat-other); color: var(--cat-other); }
+  .cat-tag[data-cat="其他"].active { background: var(--cat-other); }
 
-    .toolbar-right {
-      margin-left: auto;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+  .toolbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-    #loading-wrap {
-      display: none;
-      align-items: center;
-      gap: 7px;
-      font-size: 0.79rem;
-      color: var(--text-secondary);
-    }
-    #loading-wrap.show { display: flex; }
+  #status-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
 
-    .spinner {
-      width: 13px; height: 13px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.75s linear infinite;
-      flex-shrink: 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+  #status-text.loading { color: var(--yellow); }
+  #status-text.error { color: var(--red); }
+  #status-text.ok { color: var(--accent2); }
 
-    #last-update {
-      font-size: 0.76rem;
-      color: var(--text-secondary);
-      white-space: nowrap;
-      font-variant-numeric: tabular-nums;
-    }
+  #refresh-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 5px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
 
-    #refresh-btn {
-      background: linear-gradient(135deg, #1a4a8a, #2a6cb8);
-      border: 1px solid var(--border-glow);
-      color: #a8cbf0;
-      padding: 5px 13px;
-      border-radius: 6px;
-      font-family: inherit;
-      font-size: 0.82rem;
-      cursor: pointer;
-      display: flex; align-items: center; gap: 5px;
-      transition: all 0.2s;
-      white-space: nowrap;
-    }
-    #refresh-btn:hover:not(:disabled) {
-      background: linear-gradient(135deg, #1e5599, #3278cc);
-      box-shadow: 0 0 12px rgba(74,144,217,0.3);
-    }
-    #refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #refresh-btn:hover { background: var(--accent); color: #000; }
+  #refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* ── AUTO-UPDATE TOGGLE ── */
-    .auto-toggle {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 0.79rem;
-      color: var(--text-secondary);
-      cursor: pointer;
-      user-select: none;
-      white-space: nowrap;
-    }
-    .toggle-track {
-      position: relative;
-      width: 32px; height: 18px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 9px;
-      transition: background 0.25s, border-color 0.25s;
-      flex-shrink: 0;
-    }
-    .toggle-thumb {
-      position: absolute;
-      top: 2px; left: 2px;
-      width: 12px; height: 12px;
-      background: var(--text-secondary);
-      border-radius: 50%;
-      transition: transform 0.25s, background 0.25s;
-    }
-    .auto-toggle.on .toggle-track {
-      background: #1a4a2e;
-      border-color: #22c55e;
-    }
-    .auto-toggle.on .toggle-thumb {
-      transform: translateX(14px);
-      background: #22c55e;
-    }
-    .auto-toggle.on .toggle-label { color: #22c55e; }
+  /* ── Main layout ── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
 
-    /* ── MAIN LAYOUT ────────────────────────────────────────── */
-    #main {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
+  /* ── Map ── */
+  #map {
+    flex: 1;
+    background: var(--bg);
+  }
 
-    #map {
-      flex: 1;
-      height: 100%;
-      background: var(--bg-primary);
-    }
+  .leaflet-container { background: #080c12 !important; }
 
-    /* ── STATS PANEL ────────────────────────────────────────── */
-    #stats {
-      width: 210px;
-      background: var(--bg-secondary);
-      border-left: 1px solid var(--border);
-      padding: 14px 14px;
-      overflow-y: auto;
-      flex-shrink: 0;
-      scrollbar-width: thin;
-      scrollbar-color: var(--border) transparent;
-    }
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 280px;
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
 
-    .panel-title {
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      margin-bottom: 10px;
-    }
+  #sidebar-header {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
 
-    .stat-big {
-      font-size: 2.4rem;
-      font-weight: 700;
-      color: var(--accent);
-      line-height: 1;
-      font-variant-numeric: tabular-nums;
-    }
-    .stat-sub {
-      font-size: 0.76rem;
-      color: var(--text-secondary);
-      margin-top: 2px;
-      margin-bottom: 14px;
-    }
+  #stats {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
 
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 11px 0;
-    }
+  .stat-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    text-align: center;
+  }
 
-    .stat-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 9px;
-    }
-    .stat-dot {
-      width: 9px; height: 9px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      box-shadow: 0 0 5px currentColor;
-    }
-    .stat-name { flex: 1; font-size: 0.82rem; }
-    .stat-count {
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: var(--text-secondary);
-      font-variant-numeric: tabular-nums;
-      min-width: 24px;
-      text-align: right;
-    }
+  .stat-num {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 20px;
+    color: var(--accent);
+    display: block;
+  }
 
-    .source-list {
-      font-size: 0.76rem;
-      color: var(--text-secondary);
-      line-height: 1.9;
-    }
-    .source-item {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .source-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-      flex-shrink: 0;
-      opacity: 0.5;
-    }
-    .source-dot.ok { background: #22c55e; opacity: 1; }
-    .source-dot.fail { background: #ef4444; opacity: 1; }
+  .stat-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
 
-    /* ── OVERLAY / MODAL ────────────────────────────────────── */
-    #overlay {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.7);
-      z-index: 9990;
-      align-items: center;
-      justify-content: center;
-    }
-    #overlay.show { display: flex; }
+  .stat-item.cat { border-left: 3px solid; }
+  .stat-item.cat-災害 { border-left-color: var(--cat-disaster); }
+  .stat-item.cat-災害 .stat-num { color: var(--cat-disaster); }
+  .stat-item.cat-政治 { border-left-color: var(--cat-politics); }
+  .stat-item.cat-政治 .stat-num { color: var(--cat-politics); }
+  .stat-item.cat-社會 { border-left-color: var(--cat-society); }
+  .stat-item.cat-社會 .stat-num { color: var(--cat-society); }
+  .stat-item.cat-經濟 { border-left-color: var(--cat-economy); }
+  .stat-item.cat-經濟 .stat-num { color: var(--cat-economy); }
+  .stat-item.cat-交通 { border-left-color: var(--cat-traffic); }
+  .stat-item.cat-交通 .stat-num { color: var(--cat-traffic); }
+  .stat-item.cat-其他 { border-left-color: var(--cat-other); }
+  .stat-item.cat-其他 .stat-num { color: var(--cat-other); }
 
-    #modal {
-      background: var(--bg-card);
-      border: 1px solid #ef4444;
-      border-radius: 12px;
-      padding: 28px 32px;
-      max-width: 420px;
-      width: 90%;
-      box-shadow: 0 0 40px rgba(239,68,68,0.25);
-      text-align: center;
-    }
-    #modal h3 { color: #ef4444; font-size: 1.05rem; margin-bottom: 12px; }
-    #modal p  { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7; }
-    #modal code {
-      display: inline-block;
-      background: var(--bg-primary);
-      border: 1px solid var(--border);
-      padding: 1px 7px;
-      border-radius: 4px;
-      font-family: 'Consolas', monospace;
-      color: #fbbf24;
-      font-size: 0.83rem;
-    }
+  #news-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
 
-    /* ── TOAST ──────────────────────────────────────────────── */
-    #toast {
-      display: none;
-      position: fixed;
-      bottom: 22px; left: 50%;
-      transform: translateX(-50%);
-      background: rgba(90,20,20,0.95);
-      border: 1px solid #ef4444;
-      color: #fca5a5;
-      padding: 9px 20px;
-      border-radius: 8px;
-      font-size: 0.83rem;
-      z-index: 9999;
-      max-width: 500px;
-      text-align: center;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-    }
+  #news-list::-webkit-scrollbar { width: 4px; }
+  #news-list::-webkit-scrollbar-track { background: var(--bg2); }
+  #news-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-    /* ── LEAFLET OVERRIDES ──────────────────────────────────── */
-    .leaflet-popup-content-wrapper {
-      background: var(--bg-card) !important;
-      border: 1px solid var(--border) !important;
-      border-radius: 9px !important;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.6) !important;
-      padding: 0 !important;
-    }
-    .leaflet-popup-content {
-      margin: 0 !important;
-      font-family: 'Noto Sans TC', sans-serif !important;
-      color: var(--text-primary) !important;
-      min-width: 250px;
-      max-width: 330px;
-    }
-    .leaflet-popup-tip-container { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
-    .leaflet-popup-tip { background: var(--bg-card) !important; }
-    .leaflet-popup-close-button { color: var(--text-secondary) !important; top: 8px !important; right: 8px !important; }
-    .leaflet-popup-close-button:hover { color: var(--text-primary) !important; }
+  .news-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    border-left: 3px solid transparent;
+  }
 
-    .leaflet-tooltip {
-      background: rgba(15,23,41,0.92) !important;
-      border: 1px solid var(--border) !important;
-      border-radius: 5px !important;
-      color: var(--text-primary) !important;
-      font-family: 'Noto Sans TC', sans-serif !important;
-      font-size: 0.78rem !important;
-      padding: 3px 8px !important;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.4) !important;
-    }
-    .leaflet-tooltip::before { border-top-color: var(--border) !important; }
+  .news-item:hover { border-color: var(--accent); }
+  .news-item.cat-災害 { border-left-color: var(--cat-disaster); }
+  .news-item.cat-政治 { border-left-color: var(--cat-politics); }
+  .news-item.cat-社會 { border-left-color: var(--cat-society); }
+  .news-item.cat-經濟 { border-left-color: var(--cat-economy); }
+  .news-item.cat-交通 { border-left-color: var(--cat-traffic); }
+  .news-item.cat-其他 { border-left-color: var(--cat-other); }
 
-    /* ── POPUP CONTENT ──────────────────────────────────────── */
-    .pu-header {
-      padding: 11px 14px 9px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-    .pu-pin { font-size: 1rem; }
-    .pu-loc { font-size: 0.9rem; font-weight: 700; color: var(--accent); flex: 1; }
-    .pu-cnt {
-      font-size: 0.72rem;
-      background: var(--bg-hover);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1px 7px;
-      color: var(--text-secondary);
-    }
+  .news-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.4;
+    margin-bottom: 4px;
+  }
 
-    .pu-list { padding: 8px 4px; max-height: 320px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .news-meta {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
 
-    .pu-item {
-      padding: 6px 10px;
-      border-radius: 6px;
-      transition: background 0.15s;
-      cursor: pointer;
-    }
-    .pu-item:hover { background: var(--bg-hover); }
+  .news-loc {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
 
-    .pu-title-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 7px;
-    }
-    .pu-arrow {
-      margin-top: 3px;
-      font-size: 0.55rem;
-      color: var(--text-secondary);
-      flex-shrink: 0;
-      transition: transform 0.2s;
-    }
-    .pu-item.open .pu-arrow { transform: rotate(90deg); }
+  .news-cat-badge {
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 500;
+  }
 
-    .pu-title {
-      font-size: 0.82rem;
-      line-height: 1.45;
-      color: var(--text-primary);
-      flex: 1;
-    }
+  .badge-災害 { background: rgba(255,68,102,0.2); color: var(--cat-disaster); }
+  .badge-政治 { background: rgba(170,102,255,0.2); color: var(--cat-politics); }
+  .badge-社會 { background: rgba(0,170,255,0.2); color: var(--cat-society); }
+  .badge-經濟 { background: rgba(255,204,0,0.2); color: var(--cat-economy); }
+  .badge-交通 { background: rgba(255,136,68,0.2); color: var(--cat-traffic); }
+  .badge-其他 { background: rgba(90,122,154,0.2); color: var(--cat-other); }
 
-    .pu-badge {
-      display: inline-block;
-      padding: 1px 6px;
-      border-radius: 10px;
-      font-size: 0.68rem;
-      margin-left: 4px;
-      vertical-align: middle;
-      white-space: nowrap;
-    }
+  .news-summary {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 5px;
+    line-height: 1.5;
+    display: none;
+  }
 
-    .pu-detail {
-      display: none;
-      margin-top: 6px;
-      padding-left: 16px;
-      font-size: 0.77rem;
-      color: var(--text-secondary);
-      line-height: 1.55;
-    }
-    .pu-item.open .pu-detail { display: block; }
+  .news-item.expanded .news-summary { display: block; }
 
-    .pu-link {
-      display: inline-block;
-      margin-top: 4px;
-      color: var(--accent);
-      text-decoration: none;
-      font-size: 0.75rem;
-    }
-    .pu-link:hover { text-decoration: underline; }
+  .news-link {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 10px;
+    color: var(--accent);
+    text-decoration: none;
+  }
 
-    .pu-more {
-      padding: 4px 10px 8px;
-      font-size: 0.73rem;
-      color: var(--text-secondary);
-      text-align: center;
-    }
+  .news-link:hover { text-decoration: underline; }
 
-    /* ── PROGRESS BAR ───────────────────────────────────────── */
-    #progress-bar {
-      position: fixed;
-      top: 0; left: 0;
-      height: 2px;
-      background: var(--accent);
-      box-shadow: 0 0 8px var(--accent);
-      width: 0%;
-      transition: width 0.3s ease;
-      z-index: 9999;
-      pointer-events: none;
-    }
+  /* ── Loading overlay ── */
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,14,20,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    gap: 16px;
+    display: none;
+  }
 
-    /* ── RWD ────────────────────────────────────────────────── */
-    @media (max-width: 768px) {
-      #stats { display: none; }
-      .sep { display: none; }
-      #toolbar { gap: 7px; }
-    }
-    @media (max-width: 520px) {
-      .brand-text { display: none; }
-      #city-select { max-width: 90px; }
-      .cat-label { display: none; }
-    }
-  </style>
+  #loading-overlay.show { display: flex; }
+
+  .loading-spinner {
+    width: 40px; height: 40px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #loading-msg {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+
+  #loading-progress {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  /* ── Leaflet popup ── */
+  .leaflet-popup-content-wrapper {
+    background: var(--bg2) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
+    color: var(--text) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+  }
+
+  .leaflet-popup-tip { background: var(--bg2) !important; }
+
+  .popup-title {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--accent);
+  }
+
+  .popup-summary {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-top: 4px;
+  }
+
+  .popup-link {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--accent2);
+  }
+
+  /* ── Ollama status bar ── */
+  #ollama-bar {
+    background: var(--bg3);
+    border-top: 1px solid var(--border);
+    padding: 5px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  #ollama-indicator {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+
+  #ollama-indicator.online { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+  #ollama-indicator.offline { background: var(--red); }
+
+  /* ── Empty state ── */
+  #empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 8px;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 20px;
+  }
+
+  #empty-state .icon { font-size: 32px; opacity: 0.4; }
+  #empty-state p { font-size: 11px; line-height: 1.6; }
+
+  @media (max-width: 640px) {
+    #sidebar { display: none; }
+    .cat-filters { display: none; }
+  }
+</style>
 </head>
 <body>
 
-<!-- ── CONFIG ─────────────────────────────────────────────── -->
-<script>
-// ============================================================
-//  請在此填入您的 Google Gemini API Key
-//  取得網址：https://aistudio.google.com/apikey
-// ============================================================
-const GEMINI_API_KEY = "AIzaSyAL9hwbiAhhWYgCTkZGyzwqG1Uo9tRw_TI";
-</script>
+<!-- Toolbar -->
+<div id="toolbar">
+  <div class="logo">台灣事件地圖</div>
+  <div class="toolbar-divider"></div>
 
-<!-- ── PROGRESS BAR ───────────────────────────────────────── -->
-<div id="progress-bar"></div>
-
-<!-- ── MODAL: API KEY WARNING ─────────────────────────────── -->
-<div id="overlay">
-  <div id="modal">
-    <h3>⚠ 請先設定 API Key</h3>
-    <p>請在 <code>index.html</code> 頂部找到<br>
-    <code>GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"</code><br>
-    並填入您的 Gemini API Key，<br>儲存後重新整理頁面即可。<br><small style="color:#4a90d9">取得免費 Key：aistudio.google.com/apikey</small></p>
-  </div>
-</div>
-
-<!-- ── TOAST ──────────────────────────────────────────────── -->
-<div id="toast"></div>
-
-<!-- ── TOOLBAR ────────────────────────────────────────────── -->
-<header id="toolbar">
-  <div class="brand">
-    <div class="brand-icon">📡</div>
-    <span class="brand-text">台灣新聞地圖</span>
-  </div>
-
-  <div class="sep"></div>
-
-  <select id="city-select">
+  <select id="county-filter">
     <option value="">全部縣市</option>
-    <option>台北市</option>
-    <option>新北市</option>
-    <option>桃園市</option>
-    <option>台中市</option>
-    <option>台南市</option>
-    <option>高雄市</option>
-    <option>基隆市</option>
-    <option>新竹市</option>
-    <option>嘉義市</option>
-    <option>宜蘭縣</option>
-    <option>新竹縣</option>
-    <option>苗栗縣</option>
-    <option>彰化縣</option>
-    <option>南投縣</option>
-    <option>雲林縣</option>
-    <option>嘉義縣</option>
-    <option>屏東縣</option>
-    <option>台東縣</option>
-    <option>花蓮縣</option>
-    <option>澎湖縣</option>
-    <option>金門縣</option>
+    <option>台北市</option><option>新北市</option><option>桃園市</option>
+    <option>台中市</option><option>台南市</option><option>高雄市</option>
+    <option>基隆市</option><option>新竹市</option><option>新竹縣</option>
+    <option>苗栗縣</option><option>彰化縣</option><option>南投縣</option>
+    <option>雲林縣</option><option>嘉義市</option><option>嘉義縣</option>
+    <option>屏東縣</option><option>宜蘭縣</option><option>花蓮縣</option>
+    <option>台東縣</option><option>澎湖縣</option><option>金門縣</option>
     <option>連江縣</option>
   </select>
 
-  <div class="sep"></div>
-
-  <div class="cat-tags">
-    <span class="cat-label">分類：</span>
-    <span class="cat-tag active" data-cat="災害" style="background:#ef444422;border-color:#ef4444;color:#ef4444">災害</span>
-    <span class="cat-tag active" data-cat="政治" style="background:#3b82f622;border-color:#3b82f6;color:#3b82f6">政治</span>
-    <span class="cat-tag active" data-cat="社會" style="background:#f9731622;border-color:#f97316;color:#f97316">社會</span>
-    <span class="cat-tag active" data-cat="經濟" style="background:#22c55e22;border-color:#22c55e;color:#22c55e">經濟</span>
-    <span class="cat-tag active" data-cat="交通" style="background:#eab30822;border-color:#eab308;color:#eab308">交通</span>
-    <span class="cat-tag active" data-cat="其他" style="background:#a855f722;border-color:#a855f7;color:#a855f7">其他</span>
+  <div class="cat-filters">
+    <span class="cat-tag active" data-cat="災害">災害</span>
+    <span class="cat-tag active" data-cat="政治">政治</span>
+    <span class="cat-tag active" data-cat="社會">社會</span>
+    <span class="cat-tag active" data-cat="經濟">經濟</span>
+    <span class="cat-tag active" data-cat="交通">交通</span>
+    <span class="cat-tag active" data-cat="其他">其他</span>
   </div>
 
   <div class="toolbar-right">
-    <div id="loading-wrap">
-      <div class="spinner"></div>
-      <span id="loading-text">載入中...</span>
-    </div>
-    <div class="auto-toggle" id="auto-toggle" title="自動每24小時更新一次">
-      <div class="toggle-track"><div class="toggle-thumb"></div></div>
-      <span class="toggle-label">自動更新</span>
-    </div>
-    <span id="last-update">尚未更新</span>
-    <button id="refresh-btn">↻ 重新整理</button>
+    <span id="status-text">等待載入</span>
+    <button id="refresh-btn" onclick="loadNews()">↻ 更新</button>
   </div>
-</header>
-
-<!-- ── MAIN ───────────────────────────────────────────────── -->
-<div id="main">
-  <div id="map"></div>
-
-  <aside id="stats">
-    <div class="panel-title">即時統計</div>
-    <div class="stat-big" id="stat-total">0</div>
-    <div class="stat-sub">則新聞已標記於地圖</div>
-
-    <div class="divider"></div>
-    <div class="panel-title">分類統計</div>
-
-    <div class="stat-row">
-      <div class="stat-dot" style="background:#ef4444;color:#ef4444"></div>
-      <span class="stat-name">災害</span>
-      <span class="stat-count" id="s-災害">0</span>
-    </div>
-    <div class="stat-row">
-      <div class="stat-dot" style="background:#3b82f6;color:#3b82f6"></div>
-      <span class="stat-name">政治</span>
-      <span class="stat-count" id="s-政治">0</span>
-    </div>
-    <div class="stat-row">
-      <div class="stat-dot" style="background:#f97316;color:#f97316"></div>
-      <span class="stat-name">社會</span>
-      <span class="stat-count" id="s-社會">0</span>
-    </div>
-    <div class="stat-row">
-      <div class="stat-dot" style="background:#22c55e;color:#22c55e"></div>
-      <span class="stat-name">經濟</span>
-      <span class="stat-count" id="s-經濟">0</span>
-    </div>
-    <div class="stat-row">
-      <div class="stat-dot" style="background:#eab308;color:#eab308"></div>
-      <span class="stat-name">交通</span>
-      <span class="stat-count" id="s-交通">0</span>
-    </div>
-    <div class="stat-row">
-      <div class="stat-dot" style="background:#a855f7;color:#a855f7"></div>
-      <span class="stat-name">其他</span>
-      <span class="stat-count" id="s-其他">0</span>
-    </div>
-
-    <div class="divider"></div>
-    <div class="panel-title">資料來源</div>
-    <div class="source-list" id="source-list">
-      <div class="source-item"><div class="source-dot" id="src-台灣綜合"></div>Google News 綜合</div>
-      <div class="source-item"><div class="source-dot" id="src-台灣社會"></div>Google News 社會</div>
-      <div class="source-item"><div class="source-dot" id="src-台灣政治"></div>Google News 政治</div>
-      <div class="source-item"><div class="source-dot" id="src-台灣災害"></div>Google News 災害</div>
-      <div class="source-item"><div class="source-dot" id="src-台灣交通"></div>Google News 交通</div>
-    </div>
-  </aside>
 </div>
 
-<!-- ── JAVASCRIPT ──────────────────────────────────────────── -->
+<!-- Main -->
+<div id="main">
+  <div id="map"></div>
+  <div id="sidebar">
+    <div id="sidebar-header">LIVE FEED — 近3天事件</div>
+    <div id="stats">
+      <div class="stat-item">
+        <span class="stat-num" id="stat-total">0</span>
+        <div class="stat-label">總事件數</div>
+      </div>
+      <div class="stat-item cat cat-災害">
+        <span class="stat-num" id="stat-災害">0</span>
+        <div class="stat-label">災害</div>
+      </div>
+      <div class="stat-item cat cat-社會">
+        <span class="stat-num" id="stat-社會">0</span>
+        <div class="stat-label">社會</div>
+      </div>
+      <div class="stat-item cat cat-交通">
+        <span class="stat-num" id="stat-交通">0</span>
+        <div class="stat-label">交通</div>
+      </div>
+      <div class="stat-item cat cat-政治">
+        <span class="stat-num" id="stat-政治">0</span>
+        <div class="stat-label">政治</div>
+      </div>
+      <div class="stat-item cat cat-經濟">
+        <span class="stat-num" id="stat-經濟">0</span>
+        <div class="stat-label">經濟</div>
+      </div>
+    </div>
+    <div id="news-list">
+      <div id="empty-state">
+        <div class="icon">📡</div>
+        <p>按「更新」按鈕<br>載入最新新聞</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ollama status bar -->
+<div id="ollama-bar">
+  <div id="ollama-indicator"></div>
+  <span id="ollama-status">檢查 Ollama 連線中...</span>
+  <span style="margin-left:auto">MODEL: gemma4:e2b &nbsp;|&nbsp; OLLAMA: 11434 &nbsp;|&nbsp; FLASK: 5001</span>
+</div>
+
+<!-- Loading overlay -->
+<div id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div id="loading-msg">載入新聞中</div>
+  <div id="loading-progress"></div>
+</div>
+
 <script>
-// ============================================================
-//  CONSTANTS
-// ============================================================
-const RSS_FEEDS = [
-  { name: '台灣綜合',  url: 'https://news.google.com/rss/search?q=台灣&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
-  { name: '台灣社會',  url: 'https://news.google.com/rss/search?q=台灣+社會&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
-  { name: '台灣政治',  url: 'https://news.google.com/rss/search?q=台灣+政治&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
-  { name: '台灣災害',  url: 'https://news.google.com/rss/search?q=台灣+災害+意外&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
-  { name: '台灣交通',  url: 'https://news.google.com/rss/search?q=台灣+交通+事故&hl=zh-TW&gl=TW&ceid=TW:zh-Hant' },
-];
-const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
+// ── 設定 ──
+const OLLAMA_MODEL = 'gemma4:e2b';
+const FLASK_BASE = 'http://localhost:5001';
+const FLASK_API = `${FLASK_BASE}/api/news`;
+const UPDATE_INTERVAL = 30 * 60 * 1000; // 30分鐘
 
-const CAT_COLORS = {
-  '災害': '#ef4444',
-  '政治': '#3b82f6',
-  '社會': '#f97316',
-  '經濟': '#22c55e',
-  '交通': '#eab308',
-  '其他': '#a855f7',
-};
-
-const TAIWAN_CITIES = {
+// 縣市座標表
+const COUNTY_COORDS = {
   '台北市': [25.0330, 121.5654], '臺北市': [25.0330, 121.5654],
-  '新北市': [25.0127, 121.4651],
-  '桃園市': [24.9937, 121.3009],
+  '新北市': [25.0169, 121.4627], '桃園市': [24.9936, 121.3010],
   '台中市': [24.1477, 120.6736], '臺中市': [24.1477, 120.6736],
   '台南市': [22.9999, 120.2269], '臺南市': [22.9999, 120.2269],
-  '高雄市': [22.6273, 120.3014],
-  '基隆市': [25.1283, 121.7419],
-  '新竹市': [24.8036, 120.9686],
-  '嘉義市': [23.4800, 120.4491],
-  '宜蘭縣': [24.7021, 121.7377], '宜蘭市': [24.7639, 121.7542],
-  '新竹縣': [24.8387, 121.0178], '竹北市': [24.8378, 121.0045],
-  '苗栗縣': [24.5602, 120.8214], '苗栗市': [24.5617, 120.8216],
-  '彰化縣': [24.0518, 120.5161], '彰化市': [24.0800, 120.5463],
-  '南投縣': [23.9610, 120.9718], '南投市': [23.9130, 120.6900],
-  '雲林縣': [23.7092, 120.4313], '斗六市': [23.7098, 120.5433],
-  '嘉義縣': [23.4518, 120.2554], '朴子市': [23.4589, 120.2453],
-  '屏東縣': [22.5519, 120.5487], '屏東市': [22.6781, 120.4878],
-  '台東縣': [22.7972, 121.0713], '臺東縣': [22.7972, 121.0713], '台東市': [22.7583, 121.1444],
-  '花蓮縣': [23.9872, 121.6015], '花蓮市': [23.9772, 121.6040],
-  '澎湖縣': [23.5711, 119.5793], '馬公市': [23.5711, 119.5793],
-  '金門縣': [24.4493, 118.3765], '金城鎮': [24.4426, 118.3186],
-  '連江縣': [26.1505, 119.9390], '馬祖': [26.1505, 119.9390],
-  '淡水區': [25.1699, 121.4407], '板橋區': [25.0134, 121.4638],
-  '中和區': [24.9977, 121.4939], '永和區': [24.9982, 121.5138],
-  '新莊區': [25.0318, 121.4128], '三重區': [25.0618, 121.4848],
-  '汐止區': [25.0669, 121.6584], '土城區': [24.9738, 121.4423],
-  '中壢區': [24.9607, 121.2239], '平鎮區': [24.9393, 121.2185],
-  '大園區': [25.0597, 121.2322], '楊梅區': [24.9079, 121.1439],
-  '士林區': [25.0877, 121.5251], '內湖區': [25.0795, 121.5883],
-  '松山區': [25.0504, 121.5770], '信義區': [25.0330, 121.5674],
-  '大安區': [25.0262, 121.5436], '中山區': [25.0631, 121.5288],
-  '萬華區': [25.0354, 121.4994], '中正區': [25.0398, 121.5193],
-  '文山區': [24.9997, 121.5686], '南港區': [25.0553, 121.6072],
-  '北投區': [25.1320, 121.5006], '大同區': [25.0631, 121.5148],
-  '三峽區': [24.9328, 121.3701], '鶯歌區': [24.9530, 121.3464],
-  '新店區': [24.9680, 121.5419], '烏來區': [24.8660, 121.5500],
-  '左營區': [22.6869, 120.2983], '三民區': [22.6448, 120.3123],
-  '苓雅區': [22.6242, 120.3082], '前鎮區': [22.5891, 120.3179],
-  '鳳山區': [22.6281, 120.3568], '小港區': [22.5614, 120.3472],
-  '仁武區': [22.6884, 120.3522], '大社區': [22.7268, 120.3577],
-  '岡山區': [22.7965, 120.2951], '路竹區': [22.8543, 120.2628],
-  '梓官區': [22.7584, 120.2583], '旗山區': [22.8879, 120.4818],
-  '美濃區': [22.9016, 120.5448], '橋頭區': [22.7523, 120.3019],
-  '茄萣區': [22.8829, 120.1892], '永康區': [23.0332, 120.2596],
-  '仁德區': [22.9572, 120.2367], '歸仁區': [22.9759, 120.3008],
-  '關廟區': [23.0037, 120.3400], '龍崎區': [23.0284, 120.3785],
-  '安平區': [22.9932, 120.1876], '安南區': [23.0564, 120.1863],
-  '西區':   [22.9952, 120.2036],
-  '中區':   [25.0451, 121.5186],
-  '東區':   [23.9791, 121.6100],
+  '高雄市': [22.6273, 120.3014], '基隆市': [25.1276, 121.7392],
+  '新竹市': [24.8138, 120.9675], '新竹縣': [24.6951, 121.1368],
+  '苗栗縣': [24.5602, 120.8214], '彰化縣': [23.9936, 120.4818],
+  '南投縣': [23.9610, 120.9718], '雲林縣': [23.7224, 120.4313],
+  '嘉義市': [23.4801, 120.4491], '嘉義縣': [23.4518, 120.2554],
+  '屏東縣': [22.5519, 120.5487], '宜蘭縣': [24.6917, 121.7383],
+  '花蓮縣': [23.9871, 121.6015], '台東縣': [22.7583, 121.1444],
+  '臺東縣': [22.7583, 121.1444], '澎湖縣': [23.5711, 119.5793],
+  '金門縣': [24.4493, 118.3767], '連江縣': [26.1972, 119.9401],
 };
 
-// ============================================================
-//  STATE
-// ============================================================
-let allNews        = [];
-let markers        = [];
-let refreshTimer   = null;
-let autoUpdate     = false;   // 預設關閉
-let isLoading      = false;
-let activeCats     = new Set(['災害','政治','社會','經濟','交通','其他']);
-let activeCity     = '';
+// ── 狀態 ──
+let allNews = [];
+let markers = [];
+let activeCategories = new Set(['災害','政治','社會','經濟','交通','其他']);
+let map, markerLayer;
 
-// ============================================================
-//  MAP
-// ============================================================
-const map = L.map('map', {
-  center: [23.97, 120.97],
-  zoom: 8,
-  zoomControl: true,
-  attributionControl: true,
-});
+// ── 初始化地圖 ──
+function initMap() {
+  map = L.map('map', {
+    center: [23.97, 120.97],
+    zoom: 8,
+    zoomControl: true,
+  });
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  maxZoom: 19,
-  attribution: '© <a href="https://www.openstreetmap.org/copyright" style="color:#7a93bb">OpenStreetMap</a> © <a href="https://carto.com/" style="color:#7a93bb">CARTO</a>',
-}).addTo(map);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
 
-// ============================================================
-//  RSS FETCH (via rss2json.com)
-// ============================================================
-const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+  markerLayer = L.layerGroup().addTo(map);
+}
 
-async function fetchFeed(feed) {
-  const src = document.getElementById(`src-${feed.name}`);
+// ── 檢查 Ollama（透過 Flask proxy）──
+async function checkOllama() {
   try {
-    const res = await fetch(RSS2JSON + encodeURIComponent(feed.url), {
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (data.status !== 'ok') throw new Error(data.message || 'rss2json error');
+    const r = await fetch(`${FLASK_BASE}/api/ollama-check`, { signal: AbortSignal.timeout(5000) });
+    const data = await r.json();
+    if (data.online) {
+      document.getElementById('ollama-indicator').className = 'online';
+      document.getElementById('ollama-status').textContent = 'Ollama 已連線';
+      return true;
+    }
+  } catch {}
+  document.getElementById('ollama-indicator').className = 'offline';
+  document.getElementById('ollama-status').textContent = 'Ollama 未連線 — 請執行: ollama serve';
+  return false;
+}
 
-    const cutoff = Date.now() - THREE_DAYS;
-    const results = [];
-
-    (data.items || []).forEach(item => {
-      try {
-        const title       = (item.title || '').trim();
-        const link        = item.link || item.guid || '';
-        const description = (item.description || item.content || '')
-                              .replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').substring(0, 250);
-        let pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
-        if (isNaN(pubDate.getTime())) pubDate = new Date();
-        if (pubDate.getTime() < cutoff) return;
-        if (!title) return;
-        results.push({ title, link, pubDate: pubDate.toISOString(), description, source: feed.name });
-      } catch (_) {}
-    });
-
-    if (src) src.className = 'source-dot ok';
-    console.info(`[${feed.name}] ${results.length} 則`);
-    return results;
-  } catch (err) {
-    if (src) src.className = 'source-dot fail';
-    console.warn(`[${feed.name}] 失敗: ${err.message}`);
+// ── 從 Flask 後端抓新聞 ──
+async function fetchAllNews() {
+  try {
+    const r = await fetch(FLASK_API, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    return data.map(n => ({ ...n, date: new Date() }));
+  } catch (e) {
+    console.warn('Flask API 失敗:', e.message);
     return [];
   }
 }
 
-async function fetchAll() {
-  const settled = await Promise.allSettled(RSS_FEEDS.map(fetchFeed));
-  const all = [];
-  settled.forEach(r => { if (r.status === 'fulfilled') all.push(...r.value); });
-  // Deduplicate by title
-  const seen = new Set();
-  return all.filter(n => { if (seen.has(n.title)) return false; seen.add(n.title); return true; });
-}
-
-// ============================================================
-//  GEMINI ANALYSIS
-// ============================================================
-const SYS_PROMPT = `你是台灣新聞地理分析專家。分析提供的新聞，回傳 JSON 陣列，每則格式如下：
-{"title":"新聞標題","location":"台灣地名","lat":緯度數字或null,"lng":經度數字或null,"category":"災害|政治|社會|經濟|交通|其他","summary":"50字摘要","url":"連結","publishDate":"ISO日期"}
-
-規則：
-1. 地點不在台灣境內(含離島)時 lat/lng 設 null
-2. lat/lng 請填入精確的 WGS84 十進位座標，盡量精確到鄉鎮層級
-3. category 只能是：災害、政治、社會、經濟、交通、其他
-4. 只回傳 JSON 陣列，不要其他文字`;
-
-async function analyzeBatch(batch) {
-  const text = batch.map((n, i) =>
-    `${i+1}. 【${n.title}】 來源:${n.source} 日期:${n.pubDate} 連結:${n.link} 內文:${n.description}`
-  ).join('\n');
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: SYS_PROMPT }] },
-      contents: [{ role: 'user', parts: [{ text: `請分析以下 ${batch.length} 則新聞：\n\n${text}` }] }],
-      generationConfig: { maxOutputTokens: 4096, temperature: 0.1 },
-    }),
-    signal: AbortSignal.timeout(90000),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Gemini API ${res.status}: ${errText.substring(0,120)}`);
-  }
-
-  const data = await res.json();
-  const content = (data.candidates?.[0]?.content?.parts?.[0]?.text || '');
-  const match = content.match(/\[[\s\S]*\]/);
-  if (!match) {
-    console.warn('無法解析回應：', content.substring(0, 200));
-    throw new Error('API 回傳格式錯誤');
-  }
-  return JSON.parse(match[0]);
-}
-
-async function analyzeAll(items) {
-  const BATCH = 15;
-  const batches = [];
-  for (let i = 0; i < items.length; i += BATCH) batches.push(items.slice(i, i + BATCH));
-
+// ── 呼叫 Ollama 分析新聞 ──
+async function analyzeWithOllama(newsItems) {
+  const batchSize = 5;
   const results = [];
-  for (let i = 0; i < batches.length; i++) {
-    setProgress(((i + 0.5) / batches.length) * 100);
-    setLoadingText(`Claude 分析中 (${i + 1}/${batches.length} 批)...`);
+
+  for (let i = 0; i < newsItems.length; i += batchSize) {
+    const batch = newsItems.slice(i, i + batchSize);
+    updateLoadingProgress(`分析中 ${Math.min(i + batchSize, newsItems.length)} / ${newsItems.length}`);
+
+    const newsText = batch.map((n, idx) =>
+      `${idx + 1}. 標題：${n.title}\n   摘要：${n.desc?.substring(0, 100) || ''}`
+    ).join('\n\n');
+
+    const coordsHint = Object.entries(COUNTY_COORDS)
+      .filter(([k]) => !k.startsWith('臺'))
+      .map(([k,v]) => `${k}:[${v[0]},${v[1]}]`).join(' ');
+
+    const prompt = `你是台灣新聞地理分析師。分析以下${batch.length}則新聞，回傳JSON陣列。
+
+縣市座標參考：${coordsHint}
+
+每則新聞回傳：
+{"title":"標題","location":"台灣縣市或鄉鎮，找不到填null","lat":緯度或null,"lng":經度或null,"category":"災害|政治|社會|經濟|交通|其他","summary":"30字內摘要","url":"原始連結"}
+
+新聞：
+${newsText}
+
+只回傳JSON陣列，不要其他文字：`;
+
     try {
-      const batch = await analyzeBatch(batches[i]);
-      results.push(...batch);
-    } catch (err) {
-      console.error(`批次 ${i + 1} 失敗:`, err);
-      showToast(`部分分析失敗 (批次 ${i + 1}): ${err.message}`);
+      const r = await fetch(`${FLASK_BASE}/api/ollama-generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false }),
+        signal: AbortSignal.timeout(120000)
+      });
+      const data = await r.json();
+      let raw = data.response?.trim() || '';
+
+      // 清理 markdown code block
+      raw = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+      // 找 JSON 陣列
+      const match = raw.match(/\[[\s\S]*\]/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        parsed.forEach((item, idx) => {
+          if (item.lat && item.lng) {
+            results.push({
+              ...item,
+              url: item.url || batch[idx]?.link || '',
+              source: batch[idx]?.source || '',
+              date: batch[idx]?.date || new Date(),
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Ollama 分析失敗:', e.message);
+      // fallback: 用縣市關鍵字比對
+      batch.forEach(n => {
+        for (const [county, coords] of Object.entries(COUNTY_COORDS)) {
+          if (n.title.includes(county) || n.desc?.includes(county)) {
+            results.push({
+              title: n.title,
+              location: county,
+              lat: coords[0] + (Math.random()-0.5)*0.05,
+              lng: coords[1] + (Math.random()-0.5)*0.05,
+              category: '其他',
+              summary: n.desc?.substring(0, 50) || n.title,
+              url: n.link,
+              source: n.source,
+              date: n.date,
+            });
+            break;
+          }
+        }
+      });
     }
-    if (i < batches.length - 1) await sleep(8000);
   }
-  setProgress(100);
-  return results.filter(n => n && n.title);
+  return results;
 }
 
-// ============================================================
-//  MARKERS
-// ============================================================
-function clearMarkers() {
-  markers.forEach(m => map.removeLayer(m));
+// ── 更新地圖 ──
+function updateMap() {
+  markerLayer.clearLayers();
   markers = [];
-}
 
-function filtered() {
-  return allNews.filter(n => {
-    if (!n.lat || !n.lng) return false;
-    if (!activeCats.has(n.category)) return false;
-    if (activeCity) {
-      const loc = (n.location || '');
-      // strip 市/縣 for broader match
-      const short = activeCity.replace(/[市縣]$/, '');
-      if (!loc.includes(short) && !loc.includes(activeCity)) return false;
-    }
-    return true;
-  });
-}
+  const countyFilter = document.getElementById('county-filter').value;
 
-function renderMarkers() {
-  clearMarkers();
-  const news = filtered();
-
-  // Cluster by ~0.05° grid (~5km)
-  const grid = {};
-  news.forEach(n => {
-    const key = `${(n.lat / 0.05).toFixed(0)}_${(n.lng / 0.05).toFixed(0)}`;
-    if (!grid[key]) grid[key] = { lat: n.lat, lng: n.lng, loc: n.location, items: [] };
-    grid[key].items.push(n);
+  // 依地點群組
+  const groups = {};
+  allNews.forEach(item => {
+    if (!activeCategories.has(item.category)) return;
+    if (countyFilter && !item.location?.includes(countyFilter)) return;
+    const key = `${item.lat?.toFixed(2)}_${item.lng?.toFixed(2)}`;
+    if (!groups[key]) groups[key] = { lat: item.lat, lng: item.lng, items: [] };
+    groups[key].items.push(item);
   });
 
-  Object.values(grid).forEach(cluster => {
-    const count = cluster.items.length;
-    const r = Math.min(30, Math.max(8, 8 + (count - 1) * 3.5));
+  const catColors = {
+    '災害': '#ff4466', '政治': '#aa66ff', '社會': '#00aaff',
+    '經濟': '#ffcc00', '交通': '#ff8844', '其他': '#5a7a9a'
+  };
 
-    // Dominant category
-    const tally = {};
-    cluster.items.forEach(n => tally[n.category] = (tally[n.category] || 0) + 1);
-    const topCat = Object.entries(tally).sort((a,b) => b[1]-a[1])[0][0];
-    const color  = CAT_COLORS[topCat] || '#a855f7';
+  Object.values(groups).forEach(group => {
+    const count = group.items.length;
+    const radius = Math.min(8 + count * 3, 28);
+    const mainCat = group.items[0].category;
+    const color = catColors[mainCat] || '#5a7a9a';
 
-    const marker = L.circleMarker([cluster.lat, cluster.lng], {
-      radius: r,
+    const circle = L.circleMarker([group.lat, group.lng], {
+      radius,
       fillColor: color,
-      fillOpacity: 0.7,
-      color: 'rgba(255,255,255,0.6)',
+      color: color,
       weight: 1.5,
+      opacity: 0.9,
+      fillOpacity: 0.35,
     });
 
-    marker.bindPopup(buildPopup(cluster), { maxWidth: 360, className: 'map-popup' });
-    marker.bindTooltip(
-      count > 1 ? `${cluster.loc}（${count} 則）` : (cluster.loc || cluster.items[0].title.substring(0, 25)),
-      { direction: 'top', opacity: 0.92 }
-    );
-
-    marker.addTo(map);
-    markers.push(marker);
-  });
-
-  updateStats(news);
-}
-
-function buildPopup(cluster) {
-  const MAX = 10;
-  const shown = cluster.items.slice(0, MAX);
-
-  let html = `<div class="pu-header">
-    <span class="pu-pin">📍</span>
-    <span class="pu-loc">${cluster.loc || '未知地點'}</span>
-    <span class="pu-cnt">${cluster.items.length} 則</span>
-  </div><div class="pu-list">`;
-
-  shown.forEach((n, idx) => {
-    const c = CAT_COLORS[n.category] || '#a855f7';
-    const badge = `<span class="pu-badge" style="background:${c}25;color:${c};border:1px solid ${c}55">${n.category}</span>`;
-    const idStr = `pu-${Date.now()}-${idx}`;
-    html += `<div class="pu-item" onclick="toggleItem(this)">
-      <div class="pu-title-row">
-        <span class="pu-arrow">▶</span>
-        <span class="pu-title">${escHtml(n.title)}${badge}</span>
+    const popupContent = group.items.slice(0, 5).map(item => `
+      <div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #1e2d45">
+        <div class="popup-title">${item.title}</div>
+        <div class="popup-summary">${item.summary || ''}</div>
+        ${item.url ? `<a class="popup-link" href="${item.url}" target="_blank">閱讀全文 →</a>` : ''}
       </div>
-      <div class="pu-detail">
-        ${escHtml(n.summary || '無摘要')}
-        ${n.url ? `<br><a class="pu-link" href="${escHtml(n.url)}" target="_blank" rel="noopener noreferrer">閱讀全文 →</a>` : ''}
+    `).join('');
+
+    circle.bindPopup(`
+      <div style="min-width:220px;max-width:280px">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#5a7a9a;margin-bottom:8px">
+          📍 ${group.items[0].location || '未知'} — ${count} 則事件
+        </div>
+        ${popupContent}
       </div>
-    </div>`;
+    `, { maxWidth: 300 });
+
+    circle.addTo(markerLayer);
+    markers.push(circle);
   });
 
-  html += '</div>';
-  if (cluster.items.length > MAX) {
-    html += `<div class="pu-more">...還有 ${cluster.items.length - MAX} 則新聞</div>`;
-  }
-  return html;
+  updateStats();
+  updateNewsList();
 }
 
-window.toggleItem = function(el) {
-  el.classList.toggle('open');
-};
-
-function escHtml(str) {
-  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function updateStats(news) {
-  document.getElementById('stat-total').textContent = news.length;
-  ['災害','政治','社會','經濟','交通','其他'].forEach(cat => {
-    const el = document.getElementById(`s-${cat}`);
-    if (el) el.textContent = news.filter(n => n.category === cat).length;
+// ── 更新統計 ──
+function updateStats() {
+  const cats = ['災害','政治','社會','經濟','交通','其他'];
+  const countyFilter = document.getElementById('county-filter').value;
+  let total = 0;
+  cats.forEach(cat => {
+    const count = allNews.filter(n =>
+      n.category === cat &&
+      (!countyFilter || n.location?.includes(countyFilter))
+    ).length;
+    const el = document.getElementById(`stat-${cat}`);
+    if (el) el.textContent = count;
+    total += count;
   });
+  document.getElementById('stat-total').textContent = total;
 }
 
-// ============================================================
-//  FILTERS
-// ============================================================
-document.getElementById('city-select').addEventListener('change', e => {
-  activeCity = e.target.value;
-  renderMarkers();
-});
+// ── 更新新聞列表 ──
+function updateNewsList() {
+  const list = document.getElementById('news-list');
+  const countyFilter = document.getElementById('county-filter').value;
+  const filtered = allNews.filter(n =>
+    activeCategories.has(n.category) &&
+    (!countyFilter || n.location?.includes(countyFilter))
+  );
 
-document.getElementById('toolbar').addEventListener('click', e => {
-  const tag = e.target.closest('.cat-tag');
-  if (!tag) return;
-  const cat = tag.dataset.cat;
-  if (activeCats.has(cat)) {
-    if (activeCats.size <= 1) return;
-    activeCats.delete(cat);
-    tag.classList.remove('active');
-  } else {
-    activeCats.add(cat);
-    tag.classList.add('active');
-  }
-  renderMarkers();
-});
-
-// ============================================================
-//  LOAD & REFRESH
-// ============================================================
-async function loadData() {
-  if (isLoading) return;
-  if (GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-    document.getElementById('overlay').classList.add('show');
+  if (filtered.length === 0) {
+    list.innerHTML = `<div id="empty-state"><div class="icon">🔍</div><p>沒有符合條件的事件</p></div>`;
     return;
   }
 
-  isLoading = true;
+  list.innerHTML = filtered.slice(0, 60).map(item => `
+    <div class="news-item cat-${item.category}" onclick="this.classList.toggle('expanded')">
+      <div class="news-title">${item.title}</div>
+      <div class="news-meta">
+        <span class="news-loc">📍 ${item.location || '未知'}</span>
+        <span class="news-cat-badge badge-${item.category}">${item.category}</span>
+        <span class="news-loc">${item.source || ''}</span>
+      </div>
+      <div class="news-summary">
+        ${item.summary || ''}
+        ${item.url ? `<br><a class="news-link" href="${item.url}" target="_blank">閱讀全文 →</a>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── UI 狀態 ──
+function setStatus(msg, type = '') {
+  const el = document.getElementById('status-text');
+  el.textContent = msg;
+  el.className = type;
+}
+
+function showLoading(show, msg = '') {
+  const el = document.getElementById('loading-overlay');
+  el.classList.toggle('show', show);
+  if (msg) document.getElementById('loading-msg').textContent = msg;
+}
+
+function updateLoadingProgress(text) {
+  document.getElementById('loading-progress').textContent = text;
+}
+
+// ── 主要載入流程 ──
+async function loadNews() {
   const btn = document.getElementById('refresh-btn');
   btn.disabled = true;
-  setProgress(5);
-  showLoading(true);
-  setLoadingText('抓取 RSS...');
+  showLoading(true, '連線 Ollama 中...');
+  setStatus('連線中...', 'loading');
 
-  // Reset source indicators
-  RSS_FEEDS.forEach(f => {
-    const el = document.getElementById(`src-${f.name}`);
-    if (el) el.className = 'source-dot';
-  });
-
-  try {
-    const raw = await fetchAll();
-    console.info(`RSS 共 ${raw.length} 則`);
-
-    if (raw.length === 0) {
-      showToast('所有 RSS 來源抓取失敗，請檢查網路或稍後再試');
-      return;
-    }
-
-    setProgress(20);
-    const analyzed = await analyzeAll(raw);
-
-    // Atomic replace
-    allNews = analyzed;
-    renderMarkers();
-
-    document.getElementById('last-update').textContent =
-      '更新：' + new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-    console.info(`完成，地圖標記 ${filtered().length} / ${analyzed.length} 則`);
-  } catch (err) {
-    console.error(err);
-    showToast(`載入失敗：${err.message}`);
-  } finally {
-    isLoading = false;
-    btn.disabled = false;
+  const ollamaOk = await checkOllama();
+  if (!ollamaOk) {
     showLoading(false);
-    setTimeout(() => setProgress(0), 800);
+    setStatus('Ollama 未連線', 'error');
+    btn.disabled = false;
+    alert('請先確認 Ollama 正在執行：\n\n終端機執行：ollama serve\n然後重新整理');
+    return;
   }
+
+  showLoading(true, '從 Flask 後端抓取新聞中...');
+  setStatus('抓取新聞...', 'loading');
+  updateLoadingProgress('連線 localhost:5000');
+
+  const rawNews = await fetchAllNews();
+
+  if (rawNews.length === 0) {
+    showLoading(false);
+    setStatus('新聞抓取失敗', 'error');
+    btn.disabled = false;
+    alert('請先確認 Flask 後端正在執行：\n\n終端機執行：python3 server.py\n然後重新整理');
+    return;
+  }
+
+  showLoading(true, `Gemma 分析 ${rawNews.length} 則新聞...`);
+  setStatus(`分析 ${rawNews.length} 則新聞...`, 'loading');
+
+  allNews = await analyzeWithOllama(rawNews);
+
+  showLoading(false);
+
+  const now = new Date().toLocaleTimeString('zh-TW');
+  setStatus(`更新完成 ${now} — ${allNews.length} 則`, 'ok');
+
+  updateMap();
+  btn.disabled = false;
+
+  // 自動更新
+  setTimeout(loadNews, UPDATE_INTERVAL);
 }
 
-document.getElementById('refresh-btn').addEventListener('click', () => {
-  clearTimeout(refreshTimer);
-  loadData().then(scheduleAuto);
+// ── 篩選事件 ──
+document.querySelectorAll('.cat-tag').forEach(tag => {
+  tag.addEventListener('click', () => {
+    const cat = tag.dataset.cat;
+    tag.classList.toggle('active');
+    if (activeCategories.has(cat)) activeCategories.delete(cat);
+    else activeCategories.add(cat);
+    updateMap();
+  });
 });
 
-document.getElementById('auto-toggle').addEventListener('click', () => {
-  autoUpdate = !autoUpdate;
-  document.getElementById('auto-toggle').classList.toggle('on', autoUpdate);
-  if (autoUpdate) {
-    scheduleAuto();
-  } else {
-    clearTimeout(refreshTimer);
-  }
-});
+document.getElementById('county-filter').addEventListener('change', updateMap);
 
-function scheduleAuto() {
-  clearTimeout(refreshTimer);
-  if (!autoUpdate) return;
-  refreshTimer = setTimeout(() => {
-    loadData().then(scheduleAuto);
-  }, 24 * 60 * 60 * 1000);
-}
-
-// ============================================================
-//  UI HELPERS
-// ============================================================
-function showLoading(v) {
-  document.getElementById('loading-wrap').classList.toggle('show', v);
-}
-function setLoadingText(t) {
-  document.getElementById('loading-text').textContent = t;
-}
-function setProgress(pct) {
-  document.getElementById('progress-bar').style.width = pct + '%';
-}
-function showToast(msg, dur = 7000) {
-  const el = document.getElementById('toast');
-  el.textContent = '⚠ ' + msg;
-  el.style.display = 'block';
-  clearTimeout(el._timer);
-  el._timer = setTimeout(() => { el.style.display = 'none'; }, dur);
-}
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// ============================================================
-//  INIT
-// ============================================================
-if (GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-  document.getElementById('overlay').classList.add('show');
-} else {
-  loadData();
-}
+// ── 啟動 ──
+initMap();
+checkOllama();
 </script>
 </body>
 </html>
