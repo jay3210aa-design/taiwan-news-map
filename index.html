@@ -543,7 +543,30 @@ const RSS_FEEDS = [
   { url: 'https://news.ltn.com.tw/rss/all.xml',         source: '自由時報' },
   { url: 'https://udn.com/rssfeed/news/2/0?ch=news',    source: '聯合新聞網' },
 ];
-const CORS_PROXY = 'https://api.allorigins.win/get?url=';
+const CORS_PROXIES = [
+  { wrap: url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, parse: d => d.contents },
+  { wrap: url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,          parse: d => d },
+  { wrap: url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, parse: d => d },
+];
+
+async function fetchWithProxy(url) {
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const r = await fetch(proxy.wrap(url), { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) continue;
+      const ct = r.headers.get('content-type') || '';
+      let text;
+      if (ct.includes('json')) {
+        const j = await r.json();
+        text = proxy.parse(j);
+      } else {
+        text = await r.text();
+      }
+      if (text && text.length > 100) return text;
+    } catch {}
+  }
+  return null;
+}
 const UPDATE_INTERVAL = 30 * 60 * 1000; // 30分鐘
 
 // 縣市座標表
@@ -606,12 +629,10 @@ async function fetchAllNews() {
   const allItems = [];
   for (const feed of RSS_FEEDS) {
     try {
-      const proxyUrl = CORS_PROXY + encodeURIComponent(feed.url);
-      const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
-      if (!r.ok) continue;
-      const data = await r.json();
+      const xmlText = await fetchWithProxy(feed.url);
+      if (!xmlText) continue;
       const parser = new DOMParser();
-      const xml = parser.parseFromString(data.contents, 'text/xml');
+      const xml = parser.parseFromString(xmlText, 'text/xml');
       const items = xml.querySelectorAll('item');
       items.forEach(item => {
         const title = item.querySelector('title')?.textContent?.trim() || '';
@@ -866,7 +887,7 @@ async function loadNews() {
     showLoading(false);
     setStatus('新聞抓取失敗', 'error');
     btn.disabled = false;
-    alert('請先確認 Flask 後端正在執行：\n\n終端機執行：python3 server.py\n然後重新整理');
+    alert('新聞抓取失敗，請確認網路連線正常後重新整理');
     return;
   }
 
