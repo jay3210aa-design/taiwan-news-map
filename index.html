@@ -522,7 +522,7 @@
 <div id="ollama-bar">
   <div id="ollama-indicator"></div>
   <span id="ollama-status">檢查 Ollama 連線中...</span>
-  <span style="margin-left:auto">MODEL: gemma4:e4b &nbsp;|&nbsp; OLLAMA: 11434 &nbsp;|&nbsp; FLASK: 5001</span>
+  <span style="margin-left:auto">MODEL: gemma4:e4b &nbsp;|&nbsp; OLLAMA: 11434 (直連)</span>
 </div>
 
 <!-- Loading overlay -->
@@ -535,8 +535,15 @@
 <script>
 // ── 設定 ──
 const OLLAMA_MODEL = 'gemma4:e4b';
-const FLASK_BASE = 'http://localhost:5001';
-const FLASK_API = `${FLASK_BASE}/api/news`;
+const OLLAMA_BASE = 'http://localhost:11434';
+
+// RSS
+const RSS_FEEDS = [
+  { url: 'https://www.cna.com.tw/rss/aall.aspx',       source: '中央社' },
+  { url: 'https://news.ltn.com.tw/rss/all.xml',         source: '自由時報' },
+  { url: 'https://udn.com/rssfeed/news/2/0?ch=news',    source: '聯合新聞網' },
+];
+const CORS_PROXY = 'https://api.allorigins.win/get?url=';
 const UPDATE_INTERVAL = 30 * 60 * 1000; // 30分鐘
 
 // 縣市座標表
@@ -579,12 +586,11 @@ function initMap() {
   markerLayer = L.layerGroup().addTo(map);
 }
 
-// ── 檢查 Ollama（透過 Flask proxy）──
+// ── 檢查 Ollama（直連）──
 async function checkOllama() {
   try {
-    const r = await fetch(`${FLASK_BASE}/api/ollama-check`, { signal: AbortSignal.timeout(5000) });
-    const data = await r.json();
-    if (data.online) {
+    const r = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
       document.getElementById('ollama-indicator').className = 'online';
       document.getElementById('ollama-status').textContent = 'Ollama 已連線';
       return true;
@@ -595,17 +601,34 @@ async function checkOllama() {
   return false;
 }
 
-// ── 從 Flask 後端抓新聞 ──
+// ── 直接抓 RSS 新聞（不需 Flask）──
 async function fetchAllNews() {
-  try {
-    const r = await fetch(FLASK_API, { signal: AbortSignal.timeout(15000) });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const data = await r.json();
-    return data.map(n => ({ ...n, date: new Date() }));
-  } catch (e) {
-    console.warn('Flask API 失敗:', e.message);
-    return [];
+  const allItems = [];
+  for (const feed of RSS_FEEDS) {
+    try {
+      const proxyUrl = CORS_PROXY + encodeURIComponent(feed.url);
+      const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+      if (!r.ok) continue;
+      const data = await r.json();
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(data.contents, 'text/xml');
+      const items = xml.querySelectorAll('item');
+      items.forEach(item => {
+        const title = item.querySelector('title')?.textContent?.trim() || '';
+        const desc  = item.querySelector('description')?.textContent?.replace(/<[^>]+>/g, '').trim() || '';
+        const link  = item.querySelector('link')?.textContent?.trim() || '';
+        const pub   = item.querySelector('pubDate')?.textContent || '';
+        if (title) allItems.push({
+          title, desc, link,
+          source: feed.source,
+          date: pub ? new Date(pub) : new Date(),
+        });
+      });
+    } catch (e) {
+      console.warn(`RSS fail (${feed.source}):`, e.message);
+    }
   }
+  return allItems.slice(0, 60);
 }
 
 // ── 呼叫 Ollama 分析新聞 ──
@@ -638,7 +661,7 @@ ${newsText}
 只回傳JSON陣列，不要其他文字：`;
 
     try {
-      const r = await fetch(`${FLASK_BASE}/api/ollama-generate`, {
+      const r = await fetch(`${OLLAMA_BASE}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false }),
@@ -833,9 +856,9 @@ async function loadNews() {
     return;
   }
 
-  showLoading(true, '從 Flask 後端抓取新聞中...');
+  showLoading(true, '抓取 RSS 新聞中...');
   setStatus('抓取新聞...', 'loading');
-  updateLoadingProgress('連線 localhost:5000');
+  updateLoadingProgress('連線 RSS 來源...');
 
   const rawNews = await fetchAllNews();
 
